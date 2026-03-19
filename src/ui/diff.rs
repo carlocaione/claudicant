@@ -256,6 +256,15 @@ pub fn render_diff(frame: &mut Frame, area: Rect, app: &mut App) {
         app.diff_state.select(Some(last));
     }
 
+    // Center the selected line in the visible area
+    if let Some(selected) = app.diff_state.selected() {
+        let visible_height = area.height.saturating_sub(2) as usize; // minus borders
+        if visible_height > 0 {
+            let ideal_offset = selected.saturating_sub(visible_height / 2);
+            *app.diff_state.offset_mut() = ideal_offset;
+        }
+    }
+
     let show_cursor = focused && app.viewing_comment.is_none();
     let list = List::new(items)
         .block(block)
