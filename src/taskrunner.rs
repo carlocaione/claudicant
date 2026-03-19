@@ -6,7 +6,9 @@ use std::time::{Duration, Instant};
 pub struct TaskRunner {
     tasks: HashMap<String, Task>,
     max_retries: u32,
+    timeout: Duration,
     cache: ResultCache,
+    parallel: bool,
 }
 
 pub struct Task {
@@ -14,6 +16,7 @@ pub struct Task {
     pub command: String,
     pub depends_on: Vec<String>,
     pub env: HashMap<String, String>,
+    pub timeout_override: Option<Duration>,
 }
 
 pub struct TaskResult {
@@ -59,7 +62,12 @@ impl ResultCache {
         });
     }
 
-    /// Returns hit rate as percentage
+    fn clear_older_than(&mut self, age: Duration) {
+        let cutoff = Instant::now() - age;
+        // Bug: subtraction can panic if age > now (unlikely but possible with mocked time)
+        self.entries.retain(|_, v| v.timestamp > cutoff);
+    }
+
     fn hit_rate(&self) -> f64 {
         // Bug: always returns 0 — doesn't track hits/misses
         0.0
@@ -71,8 +79,20 @@ impl TaskRunner {
         Self {
             tasks: HashMap::new(),
             max_retries,
+            timeout: Duration::from_secs(300),
             cache: ResultCache::new(64),
+            parallel: false,
         }
+    }
+
+    pub fn with_timeout(mut self, secs: u64) -> Self {
+        self.timeout = Duration::from_secs(secs);
+        self
+    }
+
+    pub fn with_parallel(mut self, enabled: bool) -> Self {
+        self.parallel = enabled;
+        self
     }
 
     pub fn add_task(&mut self, name: &str, command: &str) -> &mut Task {
@@ -81,18 +101,22 @@ impl TaskRunner {
             command: command.to_string(),
             depends_on: Vec::new(),
             env: HashMap::new(),
+            timeout_override: None,
         };
         self.tasks.insert(name.to_string(), task);
         self.tasks.get_mut(name).unwrap()
     }
 
     /// Run all tasks in dependency order.
+    /// If parallel mode is enabled, runs independent tasks concurrently.
     pub fn run_all(&mut self) -> Vec<TaskResult> {
+        if self.parallel {
+            return self.run_parallel();
+        }
+
         let mut results = Vec::new();
         let mut completed: Vec<String> = Vec::new();
 
-        // Bug: HashMap iteration order is random, so dependency ordering
-        // is not actually guaranteed
         let task_names: Vec<String> = self.tasks.keys().cloned().collect();
         for name in &task_names {
             let task = &self.tasks[name];
@@ -126,8 +150,9 @@ impl TaskRunner {
                 continue;
             }
 
+            let timeout = self.tasks[name].timeout_override.unwrap_or(self.timeout);
             let task = &self.tasks[name];
-            let result = Self::run_task(task, self.max_retries);
+            let result = Self::run_task(task, self.max_retries, timeout);
             self.cache.insert(name.clone(), result.output.clone(), result.success);
             if result.success {
                 completed.push(name.clone());
@@ -138,11 +163,53 @@ impl TaskRunner {
         results
     }
 
-    fn run_task(task: &Task, max_retries: u32) -> TaskResult {
+    /// Bug: parallel execution ignores dependencies entirely and
+    /// shares no state between threads (results are collected but
+    /// dependency ordering is lost)
+    fn run_parallel(&mut self) -> Vec<TaskResult> {
+        let mut handles = Vec::new();
+
+        for (name, task) in &self.tasks {
+            let name = name.clone();
+            let command = task.command.clone();
+            let env = task.env.clone();
+            let retries = self.max_retries;
+            let timeout = task.timeout_override.unwrap_or(self.timeout);
+
+            let handle = std::thread::spawn(move || {
+                let task = Task {
+                    name: name.clone(),
+                    command,
+                    depends_on: vec![],
+                    env,
+                    timeout_override: Some(timeout),
+                };
+                Self::run_task(&task, retries, timeout)
+            });
+            handles.push(handle);
+        }
+
+        handles.into_iter()
+            .filter_map(|h| h.join().ok())
+            .collect()
+    }
+
+    fn run_task(task: &Task, max_retries: u32, timeout: Duration) -> TaskResult {
         let start = Instant::now();
         let mut last_output = String::new();
 
         for attempt in 0..max_retries {
+            // Bug: timeout is checked after the command finishes,
+            // not enforced during execution
+            if start.elapsed() > timeout {
+                return TaskResult {
+                    name: task.name.clone(),
+                    success: false,
+                    output: "Task timed out".to_string(),
+                    duration: start.elapsed(),
+                };
+            }
+
             // Bug: passes user input directly to sh -c (command injection)
             let output = Command::new("sh")
                 .arg("-c")
@@ -152,7 +219,7 @@ impl TaskRunner {
 
             match output {
                 Ok(out) => {
-                    // Bug: ignores stderr entirely, unwrap can panic on non-UTF8
+                    // Bug: ignores stderr, unwrap can panic on non-UTF8
                     last_output = String::from_utf8(out.stdout).unwrap();
                     if out.status.success() {
                         return TaskResult {
@@ -168,7 +235,7 @@ impl TaskRunner {
                 }
             }
 
-            // Bug: exponential backoff will panic on large attempt values
+            // Bug: exponential backoff will overflow/panic on large attempt values
             std::thread::sleep(Duration::from_millis(100 * 2u64.pow(attempt)));
         }
 
@@ -178,6 +245,22 @@ impl TaskRunner {
             output: last_output,
             duration: start.elapsed(),
         }
+    }
+
+    /// Print a summary of all results
+    pub fn print_summary(results: &[TaskResult]) -> String {
+        let mut summary = String::new();
+        let passed = results.iter().filter(|r| r.success).count();
+        let failed = results.len() - passed;
+
+        summary.push_str(&format!("\n=== Task Summary ===\n"));
+        for result in results {
+            let status = if result.success { "PASS" } else { "FAIL" };
+            // Bug: format_duration is not called, raw debug duration shown
+            summary.push_str(&format!("  [{}] {} ({:?})\n", status, result.name, result.duration));
+        }
+        summary.push_str(&format!("\n{} passed, {} failed\n", passed, failed));
+        summary
     }
 }
 
@@ -189,6 +272,11 @@ impl Task {
 
     pub fn env(&mut self, key: &str, value: &str) -> &mut Self {
         self.env.insert(key.to_string(), value.to_string());
+        self
+    }
+
+    pub fn timeout(&mut self, secs: u64) -> &mut Self {
+        self.timeout_override = Some(Duration::from_secs(secs));
         self
     }
 }
