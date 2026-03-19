@@ -90,6 +90,7 @@ pub fn run_review(
     prompt: &str,
     log_file: Option<&std::path::Path>,
     extra_args: &[String],
+    pid_holder: &std::sync::Arc<std::sync::atomic::AtomicU32>,
 ) -> Result<Review> {
     let mut cmd = Command::new("claude");
     cmd.args([
@@ -106,6 +107,8 @@ pub fn run_review(
         .stderr(Stdio::piped())
         .spawn()
         .context("Failed to run 'claude' CLI. Is Claude Code installed?")?;
+
+    pid_holder.store(child.id(), std::sync::atomic::Ordering::Relaxed);
 
     if let Some(mut stdin) = child.stdin.take() {
         stdin.write_all(prompt.as_bytes())?;

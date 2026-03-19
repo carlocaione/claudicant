@@ -1,5 +1,6 @@
 use std::collections::HashMap;
-use std::sync::mpsc;
+use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::{mpsc, Arc};
 use std::thread;
 
 use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
@@ -120,6 +121,8 @@ pub struct App {
     pub show_help: bool,
     pub reviews: HashMap<usize, Review>,
     pub review_in_progress: Option<usize>,
+    /// PID of the running claude process (shared with background thread for cancellation)
+    pub review_pid: Arc<AtomicU32>,
     pub spinner_state: throbber_widgets_tui::ThrobberState,
     /// Currently open review comment: (commit_idx, comment_idx)
     pub viewing_comment: Option<(usize, usize)>,
@@ -189,6 +192,7 @@ impl App {
             show_help: false,
             reviews: HashMap::new(),
             review_in_progress: None,
+            review_pid: Arc::new(AtomicU32::new(0)),
             spinner_state: throbber_widgets_tui::ThrobberState::default(),
             viewing_comment: None,
             pre_comment_cursor: None,
@@ -261,8 +265,21 @@ impl App {
     }
 
     pub fn on_key(&mut self, key: KeyEvent, event_tx: &mpsc::Sender<AppEvent>) -> AppAction {
-        // Block all input while review or submit is in progress
-        if self.review_in_progress.is_some() || self.submit_in_progress {
+        // Block all input while submit is in progress
+        if self.submit_in_progress {
+            return AppAction::None;
+        }
+
+        // Allow Esc to cancel a running review
+        if self.review_in_progress.is_some() {
+            if key.code == KeyCode::Esc || key.code == KeyCode::Char('q') {
+                let pid = self.review_pid.load(Ordering::Relaxed);
+                if pid > 0 {
+                    let _ = std::process::Command::new("kill").arg(pid.to_string()).status();
+                }
+                self.review_in_progress = None;
+                self.review_pid.store(0, Ordering::Relaxed);
+            }
             return AppAction::None;
         }
 
@@ -477,8 +494,11 @@ impl App {
                 let tx = event_tx.clone();
                 let log = self.log_file.clone();
                 let extra_args = self.settings.claude_args();
+                let pid_holder = self.review_pid.clone();
+                pid_holder.store(0, Ordering::Relaxed);
                 thread::spawn(move || {
-                    let result = claude::run_review(&text, log.as_deref(), &extra_args);
+                    let result = claude::run_review(&text, log.as_deref(), &extra_args, &pid_holder);
+                    pid_holder.store(0, Ordering::Relaxed);
                     let _ = tx.send(AppEvent::ReviewComplete(
                         review_idx,
                         result.map_err(|e| e.to_string()),
