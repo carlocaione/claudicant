@@ -19,19 +19,70 @@ cd claudicant
 cargo install --path .
 ```
 
-## Usage
+## Step-by-step usage
 
-Run from inside a cloned GitHub repository:
+### 1. Launch claudicant on a PR
+
+Navigate to a cloned GitHub repository and run:
 
 ```bash
-claudicant 42          # Review PR #42
-claudicant '#42'       # Also works with #
-claudicant 42 --theme ocean-dark --model sonnet --effort high
-claudicant 42 --log-file /tmp/claudicant.log
-claudicant 42 -r /path/to/repo
+claudicant 42
 ```
 
-### CLI options
+Claudicant fetches the PR metadata, downloads the commits, and generates full-file diffs locally. You'll see a two-panel TUI: the **commit list** on the left (with a detail pane below it) and the **diff view** on the right.
+
+### 2. Browse the code
+
+Use `j`/`k` to navigate commits in the left panel. The diff view updates automatically. Press `Tab` to switch focus to the diff panel, then `j`/`k` to scroll through the code. Press `p` to read the PR description.
+
+### 3. Run Claude's review
+
+Press `r` to open the review prompt dialog. You'll see the prompt that will be sent to Claude, including the list of commits. You can:
+
+- Press `a` to accept and send it as-is
+- Press `e` to edit the prompt in your `$EDITOR` before sending
+- Press `/` to append a custom prompt (e.g. "focus on security issues")
+
+Claude reviews the entire PR and returns structured comments pinned to specific files and lines. A spinner shows while the review is in progress — press `Esc` to cancel if needed.
+
+### 4. Triage the comments
+
+After the review completes, you'll see comment markers in the diff view (colored dots on the left margin) and a list of comments nested under each commit in the left panel.
+
+Navigate to a comment using `n`/`N` (next/previous) or by pressing `Enter` on a comment in the commit list. Each comment expands inline showing the severity, file, line, and Claude's feedback.
+
+For each comment, decide:
+
+- `a` — **Accept**: include this comment in the review you'll submit to GitHub
+- `x` — **Reject**: discard this comment
+- `e` — **Edit**: open in `$EDITOR` to rewrite before accepting
+
+Use `A` or `X` to accept or reject all pending comments in the current commit at once.
+
+### 5. Add your own comments
+
+Press `Enter` on any line in the diff to open `$EDITOR` and write your own comment. Press `Enter` on a file header to leave a file-level comment. Your manual comments are always marked as accepted and will be included in the submission.
+
+### 6. Submit the review
+
+Once all comments are addressed (accepted or rejected), press `S` to submit. A dialog shows the review summary (from Claude's analysis) that you can edit. Press `t` to cycle the review type:
+
+- **Comment** — neutral feedback (default)
+- **Approve** — approve the PR (green checkmark)
+- **Request Changes** — block until author addresses feedback
+
+Press `a` to submit the review to GitHub. Accepted comments appear as inline review comments on the PR.
+
+## CLI options
+
+```bash
+claudicant 42                                    # Review PR #42
+claudicant '#42'                                 # Also works with #
+claudicant 42 --theme ocean-dark                 # Set color theme
+claudicant 42 --model sonnet --effort high       # Claude settings
+claudicant 42 --log-file /tmp/claudicant.log     # Debug logging
+claudicant 42 -r /path/to/repo                   # Specify repo path
+```
 
 | Flag | Description |
 |------|-------------|
@@ -144,16 +195,6 @@ authorization flaws, and sensitive data exposure.
 ```
 
 The `default_prompt` config setting auto-appends the named prompt to every review. Press `/` in the review prompt dialog to pick a different one.
-
-## How it works
-
-1. Fetches PR metadata and commits from GitHub API
-2. Generates full-file diffs locally using `libgit2`
-3. Displays commits and diffs in a two-panel TUI with syntax highlighting
-4. Invokes `claude -p` with a structured JSON schema for the review
-5. Distributes Claude's comments to the correct commits and lines
-6. User triages each comment: accept, reject, or edit
-7. Submits accepted comments to GitHub as a PR review
 
 ## License
 
