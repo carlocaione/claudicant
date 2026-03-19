@@ -1,0 +1,3 @@
+theme = "solarized-dark"
+default_prompt = "basic"
+commit_panel_width = 30
