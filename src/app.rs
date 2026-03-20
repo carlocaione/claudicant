@@ -175,7 +175,7 @@ impl App {
         if !pr.commits.is_empty() {
             commit_state.select(Some(0));
         }
-        let highlighter = Highlighter::new(theme.syntect_theme);
+        let highlighter = Highlighter::new(&theme.syntect_theme);
         Self {
             pr,
             focus: Panel::Commits,
@@ -640,24 +640,11 @@ impl App {
                     self.settings_row = SettingsRow::from_index(i - 1);
                 }
             }
-            KeyCode::Char('l') | KeyCode::Right | KeyCode::Tab => {
+            KeyCode::Char('l') | KeyCode::Right | KeyCode::Tab | KeyCode::Enter => {
                 match self.settings_row {
-                    SettingsRow::Model => self.settings.model = self.settings.model.next(),
-                    SettingsRow::Effort => self.settings.effort = self.settings.effort.next(),
-                    SettingsRow::FastMode => self.settings.fast_mode = !self.settings.fast_mode,
-                    _ => {}
-                }
-            }
-            KeyCode::Char('h') | KeyCode::Left => {
-                match self.settings_row {
-                    SettingsRow::Model => self.settings.model = self.settings.model.prev(),
-                    SettingsRow::Effort => self.settings.effort = self.settings.effort.prev(),
-                    SettingsRow::FastMode => self.settings.fast_mode = !self.settings.fast_mode,
-                    _ => {}
-                }
-            }
-            KeyCode::Enter => {
-                match self.settings_row {
+                    SettingsRow::Theme => {
+                        self.toggle_theme();
+                    }
                     SettingsRow::Model => self.settings.model = self.settings.model.next(),
                     SettingsRow::Effort => self.settings.effort = self.settings.effort.next(),
                     SettingsRow::FastMode => self.settings.fast_mode = !self.settings.fast_mode,
@@ -667,12 +654,30 @@ impl App {
                     SettingsRow::Version => {}
                 }
             }
+            KeyCode::Char('h') | KeyCode::Left => {
+                match self.settings_row {
+                    SettingsRow::Theme => self.toggle_theme(),
+                    SettingsRow::Model => self.settings.model = self.settings.model.prev(),
+                    SettingsRow::Effort => self.settings.effort = self.settings.effort.prev(),
+                    SettingsRow::FastMode => self.settings.fast_mode = !self.settings.fast_mode,
+                    _ => {}
+                }
+            }
             KeyCode::Esc | KeyCode::Char('q') | KeyCode::Char('s') => {
                 self.show_settings = false;
             }
             _ => {}
         }
         AppAction::None
+    }
+
+    fn toggle_theme(&mut self) {
+        self.theme = if self.theme.is_terminal() {
+            Theme::solarized_dark()
+        } else {
+            Theme::terminal()
+        };
+        self.highlighter = Highlighter::new(&self.theme.syntect_theme);
     }
 
     // -- Prompt picker --

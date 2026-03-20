@@ -52,10 +52,10 @@ pub fn render_commit_list(frame: &mut Frame, area: Rect, app: &mut App) {
                     CommentStatus::Accepted => ("✓", theme.comment_accepted_marker),
                     CommentStatus::Rejected => ("✗", theme.comment_rejected_marker),
                     CommentStatus::Pending => match comment.severity {
-                        Severity::Critical => ("●", theme.deletion_prefix),
-                        Severity::Warning => ("●", theme.file_header),
-                        Severity::Suggestion => ("●", theme.status_accent),
-                        Severity::Nitpick => ("●", theme.gutter),
+                        Severity::Critical => ("●", theme.severity_critical),
+                        Severity::Warning => ("●", theme.severity_warning),
+                        Severity::Suggestion => ("●", theme.severity_suggestion),
+                        Severity::Nitpick => ("●", theme.severity_nitpick),
                     },
                 };
 
@@ -91,7 +91,7 @@ pub fn render_commit_list(frame: &mut Frame, area: Rect, app: &mut App) {
                 .border_style(theme.border_style(focused))
                 .title(title),
         )
-        .highlight_style(theme.commit_highlight_style())
+        .highlight_style(theme.cursor_style(focused))
         .highlight_symbol("▶ ");
 
     frame.render_stateful_widget(list, area, &mut app.commit_state);

@@ -28,6 +28,7 @@ pub fn render_settings(frame: &mut Frame, app: &App) {
     let version = format!("claudicant {}", env!("CARGO_PKG_VERSION"));
 
     let rows: Vec<(SettingsRow, &str, String, &str)> = vec![
+        (SettingsRow::Theme, "Theme", app.theme.name().to_string(), "</>: toggle"),
         (SettingsRow::Model, "Model", settings.model.display().to_string(), "</>: cycle"),
         (SettingsRow::Effort, "Effort", settings.effort.display().to_string(), "</>: cycle"),
         (SettingsRow::FastMode, "Fast mode", if settings.fast_mode { "on" } else { "off" }.to_string(), "Enter: toggle"),

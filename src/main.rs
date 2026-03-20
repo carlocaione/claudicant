@@ -40,11 +40,11 @@ async fn main() -> anyhow::Result<()> {
     // Load config: defaults → global → local → CLI
     let cfg = config::ConfigFile::load_merged(Some(&effective_repo_path));
 
-    let theme_name = cli.theme.or(cfg.theme).unwrap_or_else(|| "ocean-dark".to_string());
-    let theme = theme::Theme::by_name(&theme_name).ok_or_else(|| {
+    let theme_name_str = cli.theme.or(cfg.theme).unwrap_or_else(|| "terminal".to_string());
+    let theme = theme::Theme::by_name(&theme_name_str).ok_or_else(|| {
         anyhow::anyhow!(
             "Unknown theme '{}'. Available: {}",
-            theme_name,
+            theme_name_str,
             theme::Theme::available_themes().join(", ")
         )
     })?;

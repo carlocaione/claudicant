@@ -78,7 +78,7 @@ Press `a` to submit the review to GitHub. Accepted comments appear as inline rev
 ```bash
 claudicant 42                                    # Review PR #42
 claudicant '#42'                                 # Also works with #
-claudicant 42 --theme ocean-dark                 # Set color theme
+claudicant 42 --theme solarized-dark              # Set color theme
 claudicant 42 --model sonnet --effort high       # Claude settings
 claudicant 42 --log-file /tmp/claudicant.log     # Debug logging
 claudicant 42 -r /path/to/repo                   # Specify repo path
@@ -87,7 +87,7 @@ claudicant 42 -r /path/to/repo                   # Specify repo path
 | Flag | Description |
 |------|-------------|
 | `-r, --repo <PATH>` | Path to git repo (default: current directory) |
-| `--theme <NAME>` | Color theme: `ocean-dark`, `solarized-dark`, `light` |
+| `--theme <NAME>` | Color theme: `terminal` (default), `solarized-dark` |
 | `--model <MODEL>` | Claude model: `opus`, `sonnet`, `haiku` |
 | `--effort <LEVEL>` | Effort level: `low`, `medium`, `high`, `max` |
 | `--log-file <PATH>` | Log Claude responses and GitHub API calls |
@@ -164,7 +164,7 @@ Config files are loaded in order, each overriding the previous:
 ### Example config
 
 ```toml
-theme = "solarized-dark"
+theme = "terminal"
 model = "sonnet"
 effort = "high"
 default_prompt = "basic"
@@ -173,7 +173,7 @@ commit_panel_width = 30
 
 | Setting | Values | Default |
 |---------|--------|---------|
-| `theme` | `ocean-dark`, `solarized-dark`, `light` | `ocean-dark` |
+| `theme` | `terminal`, `solarized-dark` | `terminal` |
 | `model` | `opus`, `sonnet`, `haiku` | Claude's default |
 | `effort` | `low`, `medium`, `high`, `max` | Claude's default |
 | `default_prompt` | Name of a `.md` file in prompts dir | none |

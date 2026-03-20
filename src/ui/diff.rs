@@ -78,10 +78,10 @@ pub fn render_diff(frame: &mut Frame, area: Rect, app: &mut App) {
                 crate::review::CommentStatus::Accepted => ("✓ ", theme.comment_accepted_marker),
                 crate::review::CommentStatus::Rejected => ("✗ ", theme.comment_rejected_marker),
                 crate::review::CommentStatus::Pending => match comment.severity {
-                    Severity::Critical => ("● ", theme.deletion_prefix),
-                    Severity::Warning => ("● ", theme.file_header),
-                    Severity::Suggestion => ("● ", theme.status_accent),
-                    Severity::Nitpick => ("● ", theme.gutter),
+                    Severity::Critical => ("● ", theme.severity_critical),
+                    Severity::Warning => ("● ", theme.severity_warning),
+                    Severity::Suggestion => ("● ", theme.severity_suggestion),
+                    Severity::Nitpick => ("● ", theme.severity_nitpick),
                 },
             }
         } else {
@@ -106,10 +106,10 @@ pub fn render_diff(frame: &mut Frame, area: Rect, app: &mut App) {
         if let Some((comment_idx, comment)) = file_header_comment {
             if app.viewing_comment == Some((idx, comment_idx)) {
                 let severity_color = match comment.severity {
-                    Severity::Critical => theme.deletion_prefix,
-                    Severity::Warning => theme.file_header,
-                    Severity::Suggestion => theme.status_accent,
-                    Severity::Nitpick => theme.gutter,
+                    Severity::Critical => theme.severity_critical,
+                    Severity::Warning => theme.severity_warning,
+                    Severity::Suggestion => theme.severity_suggestion,
+                    Severity::Nitpick => theme.severity_nitpick,
                 };
                 render_inline_comment(
                     &mut items, &mut line_info, &mut comment_last_line,
@@ -168,10 +168,10 @@ pub fn render_diff(frame: &mut Frame, area: Rect, app: &mut App) {
                         crate::review::CommentStatus::Accepted => ("✓ ", theme.comment_accepted_marker),
                         crate::review::CommentStatus::Rejected => ("✗ ", theme.comment_rejected_marker),
                         crate::review::CommentStatus::Pending => match comment.severity {
-                            Severity::Critical => ("● ", theme.deletion_prefix),
-                            Severity::Warning => ("● ", theme.file_header),
-                            Severity::Suggestion => ("● ", theme.status_accent),
-                            Severity::Nitpick => ("● ", theme.gutter),
+                            Severity::Critical => ("● ", theme.severity_critical),
+                            Severity::Warning => ("● ", theme.severity_warning),
+                            Severity::Suggestion => ("● ", theme.severity_suggestion),
+                            Severity::Nitpick => ("● ", theme.severity_nitpick),
                         },
                     };
                     spans.push(Span::styled(marker, Style::default().fg(color)));
@@ -179,14 +179,24 @@ pub fn render_diff(frame: &mut Frame, area: Rect, app: &mut App) {
                     spans.push(Span::raw("  "));
                 }
 
-                spans.push(Span::styled(
-                    format!("{old_no} {new_no}"),
-                    Style::default().fg(theme.gutter),
-                ));
-                spans.push(Span::styled(
-                    " │ ",
-                    Style::default().fg(theme.gutter),
-                ));
+                // Colored bar indicating diff type
+                let bar = match diff_line.kind {
+                    DiffLineKind::Addition => Span::styled("▎", Style::default().fg(theme.addition_prefix)),
+                    DiffLineKind::Deletion => Span::styled("▎", Style::default().fg(theme.deletion_prefix)),
+                    DiffLineKind::Context => Span::raw(" "),
+                };
+                spans.push(bar);
+
+                let dim = matches!(diff_line.kind, DiffLineKind::Deletion);
+
+                let gutter_style = if dim {
+                    Style::default().fg(theme.gutter).add_modifier(Modifier::DIM)
+                } else {
+                    Style::default().fg(theme.gutter)
+                };
+
+                spans.push(Span::styled(format!("{old_no} {new_no}"), gutter_style));
+                spans.push(Span::styled(" │ ", gutter_style));
                 spans.push(Span::styled(
                     prefix.to_string(),
                     match diff_line.kind {
@@ -196,21 +206,23 @@ pub fn render_diff(frame: &mut Frame, area: Rect, app: &mut App) {
                     },
                 ));
 
-                let highlighted = app.highlighter.highlight_line(
-                    &diff_line.content,
-                    ext,
-                    diff_line.kind,
-                );
-                if !highlighted.is_empty() {
-                    spans.extend(highlighted);
+                if dim {
+                    spans.push(Span::styled(
+                        diff_line.content.clone(),
+                        Style::default().add_modifier(Modifier::DIM),
+                    ));
+                } else if theme.syntect_theme.is_empty() {
+                    spans.push(Span::raw(diff_line.content.clone()));
+                } else {
+                    let highlighted = app.highlighter.highlight_line(
+                        &diff_line.content,
+                        ext,
+                    );
+                    if !highlighted.is_empty() {
+                        spans.extend(highlighted);
+                    }
                 }
-
-                let line_style = match diff_line.kind {
-                    DiffLineKind::Addition => Style::default().bg(theme.addition_bg),
-                    DiffLineKind::Deletion => Style::default().bg(theme.deletion_bg),
-                    DiffLineKind::Context => Style::default(),
-                };
-                items.push(ListItem::new(Line::from(spans)).style(line_style));
+                items.push(ListItem::new(Line::from(spans)));
                 line_info.push(DiffLineMetadata {
                     file_path: file.path.clone(),
                     lineno,
@@ -223,10 +235,10 @@ pub fn render_diff(frame: &mut Frame, area: Rect, app: &mut App) {
                 if let Some((comment_idx, comment)) = comment_match {
                     if app.viewing_comment == Some((idx, comment_idx)) {
                         let severity_color = match comment.severity {
-                            Severity::Critical => theme.deletion_prefix,
-                            Severity::Warning => theme.file_header,
-                            Severity::Suggestion => theme.status_accent,
-                            Severity::Nitpick => theme.gutter,
+                            Severity::Critical => theme.severity_critical,
+                            Severity::Warning => theme.severity_warning,
+                            Severity::Suggestion => theme.severity_suggestion,
+                            Severity::Nitpick => theme.severity_nitpick,
                         };
                         render_inline_comment(
                             &mut items, &mut line_info, &mut comment_last_line,

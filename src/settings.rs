@@ -149,6 +149,7 @@ impl EffortLevel {
 /// Rows in the settings panel.
 #[derive(Clone, Copy, PartialEq)]
 pub enum SettingsRow {
+    Theme,
     Model,
     Effort,
     FastMode,
@@ -157,7 +158,8 @@ pub enum SettingsRow {
 }
 
 impl SettingsRow {
-    pub const ALL: [Self; 5] = [
+    pub const ALL: [Self; 6] = [
+        Self::Theme,
         Self::Model,
         Self::Effort,
         Self::FastMode,
