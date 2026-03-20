@@ -4,6 +4,8 @@ A TUI tool for reviewing GitHub pull requests with Claude AI assistance.
 
 Fetch a PR, browse commits and diffs with syntax highlighting, let Claude review the code, curate the comments (accept, reject, edit), then submit the review back to GitHub — all from your terminal.
 
+![usage](assets/usage.gif)
+
 ## Prerequisites
 
 - [Rust](https://rustup.rs/) (for building)
